@@ -4,8 +4,7 @@ Export all Kaltura entries, categories and chosen metadata profile (or filtered 
 # Configuration
 Before running the script, follow these steps:
 
-1. Download the [Kaltura PHP 5.3+ API Client archive](https://developer.kaltura.com/api-docs/Client_Libraries) and extract into the /kaltura-client directory
-2. Edit `kaltura-entries-export-excel.php` and set the following parameters:  
+1. Edit `kaltura-entries-export-excel.php` and set the following parameters:  
 	* `PARENT_PARTNER_IDS`: An array of parent kaltura partner IDs and their respective API ADMIN Secrets, to get entries export for. If the ID provided is not a parent account the entries of that account will be exported
 	* `SERVICE_URL`: the full base URL to the Kaltura API endpoint (https://www.kaltura.com when using SaaS)
 	* `KS_EXPIRY_TIME`: Session duration; since the execution time will vary based on the number of records, be sure to set the duration accordingly.
@@ -29,12 +28,11 @@ Before running the script, follow these steps:
 	* `LIMIT_TOTAL_ENTRIES`: limit the number of entries to export, if false or null will be ignored
 	* `$excelFieldFormats`: array of excel cell formats for the exported Kaltura fields, learn more about [excel cell formats here](https://support.microsoft.com/en-us/office/number-format-codes-5026bbd6-04bc-48cd-bf33-80f18b4eae68).
 	* `$exportFileNameTemplate`: sets the name of the output excel file (do not include the file extension).
-  
-After setting the values for the above parameters, run the script using PHP CLI:  
-```
-$ composer install
-$ php kaltura-entries-export-excel.php
-```
+2. After setting the values for the above parameters, run the script using PHP CLI:  
+	* ```
+	$ composer install
+	$ php kaltura-entries-export-excel.php
+	```
 
 # How you can help (guidelines for contributors) 
 Thank you for helping Kaltura grow! If you'd like to contribute please follow these steps:
