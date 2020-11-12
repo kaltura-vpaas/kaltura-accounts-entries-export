@@ -1,0 +1,6 @@
+{
+    "require": {
+        "phpoffice/phpspreadsheet": "^1.15",
+        "kaltura/api-client-library": "^16.10"
+    }
+}
