@@ -23,6 +23,7 @@ Before running the script, follow these steps:
 	* `REPORT_USAGE_DATE_START`: the date to get storage usage per entry for
 	* `REPORT_USAGE_DATE_END`: the date to get storage usage per entry for
 	* `REPORT_TIMEZONE_OFFSET`: timezone offset for getting usage storage report for, negative 180 is Israel timezone
+	* `GET_ENTRY_SCHEDULED_EVENTS`: if true, will also export all simulive events for this entry (scheduledEvents of type live with templateEntryId being that entry)
 	* `ERROR_LOG_FILE`: the name of the `KalturaLogger` export file
 	* `STOP_DATE_FOR_EXPORT`: defines a stop date for the entries iteration loop. Any time string supported by `strtotime` can be passed. If this is set to null or -1, it will be ignored and the script will run through the entire library until it reaches the first created entry. e.g. '45 days ago' or '01/01/2017', etc. 
 	* `LIMIT_TOTAL_ENTRIES`: limit the number of entries to export, if false or null will be ignored
