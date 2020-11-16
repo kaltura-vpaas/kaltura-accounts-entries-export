@@ -1084,8 +1084,10 @@ class ExecutionTime
 
 	public function totalRunTime()
 	{
-		$this->time = $this->time_end - $this->time_start;
-		return "Total script run time was: $this->time seconds\n";
+		$this->time = round($this->time_end - $this->time_start);
+		$minutes = floor($this->time / 60); //only minutes
+		$seconds = $this->time % 60;//remaining seconds, using modulo operator
+		return "script execution time: minutes:$minutes, seconds:$seconds";
 	}
 
 	private function runTime($ru, $rus, $index)
