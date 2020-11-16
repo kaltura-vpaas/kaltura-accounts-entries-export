@@ -25,10 +25,10 @@ use Kaltura\Client\Plugin\Schedule\Type\LiveStreamScheduleEventFilter;
 
 class KalturaContentAnalytics implements ILogger
 {
-	const PARENT_PARTNER_IDS = array( 
+	const PARENT_PARTNER_IDS = array(
 		00000000 => 'jhdsfag348gf78924y783t4r87g', //get it from https://kmc.kaltura.com/index.php/kmcng/settings/integrationSettings
 		11111111 => '86f23478dgasiufgaisuhiuyg78'
-    );
+	);
 	const SERVICE_URL = 'https://www.kaltura.com'; //The base URL to the Kaltura server API endpoint
 	const KS_EXPIRY_TIME = 86000; // Kaltura session length. Please note the script may run for a while so it mustn't be too short.
 	const DEBUG_PRINTS = true; //Set to true if you'd like the script to output logging to the console (this is different from the KalturaLogger)
@@ -53,12 +53,13 @@ class KalturaContentAnalytics implements ILogger
 	const ONLY_CAPTIONED_ENTRIES = false; // Should only entries that have caption assets be included in the output?
 	const GET_CAPTION_URLS = false; // Should the excel include URLs to download caption assets?
 
-	const GET_ENTRY_USAGE = true; //if true, each entry live will also include the usage of that particular entry
+	const GET_ENTRY_USAGE = false; //if true, each entry live will also include the usage of that particular entry
 	const REPORT_USAGE_DATE_START = '20070101'; //the date to get storage usage per entry for
 	const REPORT_USAGE_DATE_END = '20201104'; //the date to get storage usage per entry for
 	const REPORT_TIMEZONE_OFFSET = 480; //timezone offset for getting usage storage report for, e.g. 480 is pacific US, negative 180 is Israel timezone. make sure this is aligned with your choice of timezone above in date_default_timezone_set
 
-	const GET_ENTRY_SCHEDULED_EVENTS = true; //if true, will also export all simulive events for this entry (scheduledEvents of type live with templateEntryId being that entry)
+	const GET_ENTRY_SCHEDULED_EVENTS = true; //if true, will also export all scheduled events for this entry (scheduledEvents of type live with templateEntryId being that entry)
+	const ENTRY_SCHEDULED_EVENTS_IN_COLUMNS = true; //if true, it will be assumed that each live entry only has a single scheduled event, and instead of being added in single multi-line cell as string, the scheduled events will be added into 3 new columns: scheduled_event_source_id, scheduled_event_start_time, scheduled_event_end_time
 
 	// excel cell formats for the exported Kaltura fields
 	// note that fields that were not stated here will be auto interpreted by Excel when opened as General
@@ -90,8 +91,8 @@ class KalturaContentAnalytics implements ILogger
 		'N' => '',
 		'O' => '',
 		'P' => '',
-		'Q' => '',
-		'R' => '',
+		'Q' => '[$-en-US]mmmm d, yyyy;@',
+		'R' => '[$-en-US]mmmm d, yyyy;@',
 		'S' => '',
 		'T' => '',
 		'U' => '',
@@ -163,7 +164,13 @@ class KalturaContentAnalytics implements ILogger
 		}
 
 		if (KalturaContentAnalytics::GET_ENTRY_SCHEDULED_EVENTS == true) {
-			$header[] = "scheduled_events";
+			if (KalturaContentAnalytics::ENTRY_SCHEDULED_EVENTS_IN_COLUMNS == true) {
+				$header[] = "scheduled_event_source_id";
+				$header[] = "scheduled_event_start_time";
+				$header[] = "scheduled_event_end_time";
+			} else {
+				$header[] = "scheduled_events";
+			}
 		}
 
 		if (KalturaContentAnalytics::GET_CATEGORIES == true) {
@@ -226,10 +233,26 @@ class KalturaContentAnalytics implements ILogger
 			}
 
 			if (KalturaContentAnalytics::GET_ENTRY_SCHEDULED_EVENTS == true) {
-				if (isset($entry["scheduledevents"]))
-					$row[] = $entry["scheduledevents"];
-				else
-					$row[] = '';
+				if (KalturaContentAnalytics::ENTRY_SCHEDULED_EVENTS_IN_COLUMNS == true) {
+					if (
+						isset($entry["scheduledevents"]) && isset($entry['scheduledevents']['scheduledEventSourceId'])
+						&& isset($entry['scheduledevents']['scheduledEventStartTime']) && isset($entry['scheduledevents']['scheduledEventEndTime'])
+					) {
+						$row[] = $entry['scheduledevents']['scheduledEventSourceId'];
+						$row[] = $this->convertTimestamp2Excel($entry['scheduledevents']['scheduledEventStartTime']);
+						$row[] = $this->convertTimestamp2Excel($entry['scheduledevents']['scheduledEventEndTime']);
+					} else {
+						$row[] = '';
+						$row[] = '';
+						$row[] = '';
+					}
+				} else {
+					if (isset($entry["scheduledevents"])) {
+						$row[] = $entry["scheduledevents"];
+					} else {
+						$row[] = '';
+					}
+				}
 			}
 
 			if (KalturaContentAnalytics::GET_CATEGORIES == true) {
@@ -598,16 +621,27 @@ class KalturaContentAnalytics implements ILogger
 				$entriesSchedules = $this->presistantApiRequest($schedulePlugin->scheduleEvent, 'listAction', array($sefilter, $pager), 5);
 				while (count($entriesSchedules->objects) > 0) {
 					foreach ($entriesSchedules->objects as $scheduledEntry) {
-						if (!isset($entries[$eid]['scheduledevents']))
-							$entries[$eid]['scheduledevents'] = '';
-						else
-							$entries[$eid]['scheduledevents'] .= PHP_EOL;
-						$currentTimezone = date_default_timezone_get();
-						$seventStartDate = DateTime::createFromFormat('U', $scheduledEntry->startDate, new DateTimeZone($currentTimezone));
-						$seventEndDate = DateTime::createFromFormat('U', $scheduledEntry->endDate, new DateTimeZone($currentTimezone));
-						$eStartDate = $seventStartDate->format('Y-m-d G:i:s T');
-						$eEndDate = $seventEndDate->format('Y-m-d G:i:s T');
-						$entries[$eid]['scheduledevents'] .= 'source: ' . $scheduledEntry->sourceEntryId . ', start: ' . $eStartDate . ', end: ' . $eEndDate;
+						if (KalturaContentAnalytics::ENTRY_SCHEDULED_EVENTS_IN_COLUMNS == true) {
+							if (!isset($entries[$eid]['scheduledevents']))
+								$entries[$eid]['scheduledevents'] = array();
+							else
+								echo PHP_EOL . 'Warning! this live entry has more than a single scheduled event ' . $eid . ' prev: ' . $entries[$eid]['scheduledevents']['scheduledEventSourceId'] . ', and now: ' . $scheduledEntry->sourceEntryId . PHP_EOL . PHP_EOL;
+							$entries[$eid]['scheduledevents']['scheduledEventSourceId'] = $scheduledEntry->sourceEntryId;
+							$entries[$eid]['scheduledevents']['scheduledEventStartTime'] = $scheduledEntry->startDate;
+							$entries[$eid]['scheduledevents']['scheduledEventEndTime'] = $scheduledEntry->endDate;
+						} else {
+							if (!isset($entries[$eid]['scheduledevents']))
+								$entries[$eid]['scheduledevents'] = '';
+							else
+								$entries[$eid]['scheduledevents'] .= PHP_EOL;
+
+							$currentTimezone = date_default_timezone_get();
+							$seventStartDate = DateTime::createFromFormat('U', $scheduledEntry->startDate, new DateTimeZone($currentTimezone));
+							$seventEndDate = DateTime::createFromFormat('U', $scheduledEntry->endDate, new DateTimeZone($currentTimezone));
+							$eStartDate = $seventStartDate->format('Y-m-d G:i:s T');
+							$eEndDate = $seventEndDate->format('Y-m-d G:i:s T');
+							$entries[$eid]['scheduledevents'] .= 'source: ' . $scheduledEntry->sourceEntryId . ', start: ' . $eStartDate . ', end: ' . $eEndDate;
+						}
 					}
 					++$pager->pageIndex;
 					$entriesSchedules = $this->presistantApiRequest($schedulePlugin->scheduleEvent, 'listAction', array($sefilter, $pager), 5);
@@ -1033,13 +1067,13 @@ class ExecutionTime
 	private $endTime;
 
 	private $time_start     =   0;
-    private $time_end       =   0;
-    private $time           =   0;
+	private $time_end       =   0;
+	private $time           =   0;
 
 	public function start()
 	{
 		$this->startTime = getrusage();
-		$this->time_start= microtime(true);
+		$this->time_start = microtime(true);
 	}
 
 	public function end()
@@ -1048,9 +1082,10 @@ class ExecutionTime
 		$this->time_end = microtime(true);
 	}
 
-	public function getTotalRunTime(){
+	public function totalRunTime()
+	{
 		$this->time = $this->time_end - $this->time_start;
-        return "Total script run time was: $this->time seconds\n";
+		return "Total script run time was: $this->time seconds\n";
 	}
 
 	private function runTime($ru, $rus, $index)
@@ -1061,7 +1096,7 @@ class ExecutionTime
 
 	public function __toString()
 	{
-		return getTotalRunTime() . PHP_EOL . "This process used " . $this->runTime($this->endTime, $this->startTime, "utime") .
+		return $this->totalRunTime() . PHP_EOL . "This process used " . $this->runTime($this->endTime, $this->startTime, "utime") .
 			" ms for its computations\nIt spent " . $this->runTime($this->endTime, $this->startTime, "stime") .
 			" ms in system calls\n";
 	}
