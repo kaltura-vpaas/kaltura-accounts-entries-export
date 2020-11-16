@@ -69,6 +69,7 @@ class KalturaContentAnalytics implements ILogger
 	//		'#,##0' number with thousands seperator
 	//		'#,##0.00' with 2 after decimal point
 	//		'[$-en-US]mmmm d, yyyy;@' text date
+	//		'[$-en-US]m/d/yy h:mm AM/PM;@' //date and time
 	// The letters correspond to the Excel columns
 	// learn more about excel cell formats here:
 	//https://support.microsoft.com/en-us/office/number-format-codes-5026bbd6-04bc-48cd-bf33-80f18b4eae68
@@ -91,8 +92,8 @@ class KalturaContentAnalytics implements ILogger
 		'N' => '',
 		'O' => '',
 		'P' => '',
-		'Q' => '[$-en-US]mmmm d, yyyy;@',
-		'R' => '[$-en-US]mmmm d, yyyy;@',
+		'Q' => '[$-en-US]m/d/yy h:mm AM/PM;@',
+		'R' => '[$-en-US]m/d/yy h:mm AM/PM;@',
 		'S' => '',
 		'T' => '',
 		'U' => '',
@@ -1087,7 +1088,7 @@ class ExecutionTime
 		$this->time = round($this->time_end - $this->time_start);
 		$minutes = floor($this->time / 60); //only minutes
 		$seconds = $this->time % 60;//remaining seconds, using modulo operator
-		return "script execution time: minutes:$minutes, seconds:$seconds";
+		return "Total script execution time: minutes:$minutes, seconds:$seconds";
 	}
 
 	private function runTime($ru, $rus, $index)

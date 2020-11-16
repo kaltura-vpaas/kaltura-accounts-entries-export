@@ -30,7 +30,8 @@ Before running the script, follow these steps:
 	* `LIMIT_TOTAL_ENTRIES`: limit the number of entries to export, if false or null will be ignored
 	* `$excelFieldFormats`: array of excel cell formats for the exported Kaltura fields, learn more about [excel cell formats here](https://support.microsoft.com/en-us/office/number-format-codes-5026bbd6-04bc-48cd-bf33-80f18b4eae68).
 	* `$exportFileNameTemplate`: sets the name of the output excel file (do not include the file extension).
-2. After setting the values for the above parameters, run the script using PHP CLI:  
+2. Adjust `$excelFieldFormats` accordingly to get the desired cell formats in the excel file.  
+3. After setting the values for the above parameters, run the script using PHP CLI:  
 ```bash
 $ composer install
 $ php kaltura-entries-export-excel.php
