@@ -82,7 +82,7 @@ class KalturaContentAnalytics implements ILogger
 		'D' => '#,##0',
 		'E' => '',
 		'F' => '',
-		'G' => '[$-en-US]mmmm d, yyyy;@',
+		'G' => '[$-en-US]m/d/yy h:mm AM/PM;@',
 		'H' => '',
 		'I' => '[$-en-US]mmmm d, yyyy;@',
 		'J' => '[$-en-US]mmmm d, yyyy;@',
@@ -92,15 +92,15 @@ class KalturaContentAnalytics implements ILogger
 		'N' => '',
 		'O' => '',
 		'P' => '',
-		'Q' => '[$-en-US]m/d/yy h:mm AM/PM;@',
+		'Q' => '',
 		'R' => '[$-en-US]m/d/yy h:mm AM/PM;@',
-		'S' => '',
+		'S' => '[$-en-US]m/d/yy h:mm AM/PM;@',
 		'T' => '',
 		'U' => '',
 		'V' => ''
 	);
 
-	private $exportFileNameTemplate = 'kaltura-entries-all'; //This sets the name of the output excel file (without .xsl extension)
+	private $exportFileNameTemplate = 'kaltura-entries'; //This sets the name of the output excel file (without .xsl extension)
 	private $exportFileName = 'null'; // do not toouch this
 
 	private $stopDateForCreatedAtFilter = null;
@@ -134,10 +134,6 @@ class KalturaContentAnalytics implements ILogger
 
 		// get all sub accounts of this parent kaltura account:
 		$allSubAccounts = $this->getAllSubAccounts($this->client);
-		//get the account info; (in case it's not a parent account)
-		//$parentPartnerAccount = $this->client->partner->getInfo();
-		//$parentActFields = [$parentPartnerAccount->id, $parentPartnerAccount->name, $parentPartnerAccount->adminSecret, $parentPartnerAccount->referenceId, $parentPartnerAccount->createdAt, $parentPartnerAccount->status];
-		//$allSubAccounts = [$parentActFields];
 
 		// get all entries for each sub-account:
 		$totalAllAccounts = count($allSubAccounts);
@@ -150,7 +146,6 @@ class KalturaContentAnalytics implements ILogger
 			echo 'Progress: ' . $perc . '% (Account ' . $counter . ' out of: ' . $totalAllAccounts . ')' . PHP_EOL;
 			$actEntries = $this->getEntriesForSubAccount($subpartner['id'], $subpartner['name'], $subpartner['adminSecret']);
 			$this->allEntries = array_merge($this->allEntries, $actEntries);
-			$this->clearConsoleLines(7, true);
 		}
 
 		//create the excel file
@@ -166,6 +161,7 @@ class KalturaContentAnalytics implements ILogger
 
 		if (KalturaContentAnalytics::GET_ENTRY_SCHEDULED_EVENTS == true) {
 			if (KalturaContentAnalytics::ENTRY_SCHEDULED_EVENTS_IN_COLUMNS == true) {
+				$header[] = "scheduled_event_tags";
 				$header[] = "scheduled_event_source_id";
 				$header[] = "scheduled_event_start_time";
 				$header[] = "scheduled_event_end_time";
@@ -212,7 +208,7 @@ class KalturaContentAnalytics implements ILogger
 						$row[] = $this->convertTimestamp2Excel($entry['lastPlayedAt']);
 					}
 				} else {
-					if (in_array($entryField, array('createdAt', 'updatedAt'))) {
+					if (in_array($entryField, array('createdAt', 'updatedAt', 'startDate'))) {
 						if (isset($entry[$entryField]))
 							$row[] = $this->convertTimestamp2Excel($entry[$entryField]);
 						else
@@ -234,22 +230,21 @@ class KalturaContentAnalytics implements ILogger
 			}
 
 			if (KalturaContentAnalytics::GET_ENTRY_SCHEDULED_EVENTS == true) {
-				if (KalturaContentAnalytics::ENTRY_SCHEDULED_EVENTS_IN_COLUMNS == true) {
-					if (
-						isset($entry["scheduledevents"]) && isset($entry['scheduledevents']['scheduledEventSourceId'])
-						&& isset($entry['scheduledevents']['scheduledEventStartTime']) && isset($entry['scheduledevents']['scheduledEventEndTime'])
-					) {
-						$row[] = $entry['scheduledevents']['scheduledEventSourceId'];
-						$row[] = $this->convertTimestamp2Excel($entry['scheduledevents']['scheduledEventStartTime']);
-						$row[] = $this->convertTimestamp2Excel($entry['scheduledevents']['scheduledEventEndTime']);
+				if (isset($entry["scheduledevents"])) {
+					if (KalturaContentAnalytics::ENTRY_SCHEDULED_EVENTS_IN_COLUMNS == true) {
+						$row[] = isset($entry['scheduledevents']['scheduledEventTags']) ? $entry['scheduledevents']['scheduledEventTags'] : '';
+						$row[] = isset($entry['scheduledevents']['scheduledEventSourceId']) ? $entry['scheduledevents']['scheduledEventSourceId'] : '';
+						$row[] = isset($entry['scheduledevents']['scheduledEventStartTime']) ? $this->convertTimestamp2Excel($entry['scheduledevents']['scheduledEventStartTime']) : '';
+						$row[] = isset($entry['scheduledevents']['scheduledEventEndTime']) ? $this->convertTimestamp2Excel($entry['scheduledevents']['scheduledEventEndTime']) : '';
 					} else {
-						$row[] = '';
-						$row[] = '';
-						$row[] = '';
+						$row[] = $entry["scheduledevents"];
 					}
 				} else {
-					if (isset($entry["scheduledevents"])) {
-						$row[] = $entry["scheduledevents"];
+					if (KalturaContentAnalytics::ENTRY_SCHEDULED_EVENTS_IN_COLUMNS == true) {
+						$row[] = '';
+						$row[] = '';
+						$row[] = '';
+						$row[] = '';
 					} else {
 						$row[] = '';
 					}
@@ -311,8 +306,8 @@ class KalturaContentAnalytics implements ILogger
 			if (KalturaContentAnalytics::ONLY_CAPTIONED_ENTRIES == false || (KalturaContentAnalytics::ONLY_CAPTIONED_ENTRIES == true && $capLangs != ''))
 				array_push($data, $row);
 		}
-
-		$this->writeXLSX($this->exportFileName . '.xlsx', $data, $header, $this->excelFieldFormats);
+		$xslxfile = $this->convert_to_filename($this->exportFileName) . '.xlsx';
+		$this->writeXLSX($xslxfile, $data, $header, $this->excelFieldFormats);
 
 		echo 'Successfully exported data!' . PHP_EOL;
 		echo 'File name: ' . $this->exportFileName . '.xls' . PHP_EOL;
@@ -450,7 +445,6 @@ class KalturaContentAnalytics implements ILogger
 				$totalMsDuration += $entry['msDuration'];
 		}
 		echo 'Total minutes of entries exported: ' . number_format($totalMsDuration / 1000 / 60, 2) . PHP_EOL;
-
 
 		//get all categoryEntry objects
 		if (KalturaContentAnalytics::GET_CATEGORIES) {
@@ -600,59 +594,55 @@ class KalturaContentAnalytics implements ILogger
 		}
 
 		if (KalturaContentAnalytics::GET_ENTRY_SCHEDULED_EVENTS == true) {
-			if (KalturaContentAnalytics::DEBUG_PRINTS) echo 'Getting all scheduled events for the entries...' . PHP_EOL;
+			if (KalturaContentAnalytics::DEBUG_PRINTS)
+				echo 'Getting all scheduled events for the entries...' . PHP_EOL;
 			$schedulePlugin = SchedulePlugin::get($this->client);
 			$sefilter = new LiveStreamScheduleEventFilter();
-			$pager = new FilterPager();
 			$sefilter->orderBy = LiveStreamScheduleEventOrderBy::START_DATE_ASC;
 			$sefilter->statusEqual = ScheduleEventStatus::ACTIVE;
-			$N = count($entries);
+			$pager = new FilterPager();
+			$pager->pageSize = KalturaContentAnalytics::CYCLE_SIZES;
+			$pager->pageIndex = 1;
 			reset($entries);
-			$eid = key($entries);
-			for ($i = 0; $i < $N; $i++) {
-				if (isset($entries[$eid]['mediaType']) && $entries[$eid]['mediaType'] != 'LIVE_STREAM')
-					continue;
+			$totalSchedules = 0;
+			$entriesSchedules = $this->presistantApiRequest($schedulePlugin->scheduleEvent, 'listAction', array($sefilter, $pager), 5);
+			while (count($entriesSchedules->objects) > 0) {
 				if (KalturaContentAnalytics::DEBUG_PRINTS) {
 					$this->clearConsoleLines(1);
-					echo 'Getting scheduled events for entry Id: ' . $eid;
+					echo 'Getting scheduled events: ' . $totalSchedules . ' of ' . $entriesSchedules->totalCount;
 				}
-				$sefilter->templateEntryIdEqual = $eid;
-				$pager->pageSize = KalturaContentAnalytics::CYCLE_SIZES;
-				$pager->pageIndex = 1;
-				$entriesSchedules = $this->presistantApiRequest($schedulePlugin->scheduleEvent, 'listAction', array($sefilter, $pager), 5);
-				while (count($entriesSchedules->objects) > 0) {
-					foreach ($entriesSchedules->objects as $scheduledEntry) {
-						if (KalturaContentAnalytics::ENTRY_SCHEDULED_EVENTS_IN_COLUMNS == true) {
-							if (!isset($entries[$eid]['scheduledevents']))
-								$entries[$eid]['scheduledevents'] = array();
+				foreach ($entriesSchedules->objects as $scheduledEntry) {
+					if (isset($entries[$scheduledEntry->templateEntryId])) { //only process if this entry is on the list of entries
+						++$totalSchedules;
+						if (KalturaContentAnalytics::ENTRY_SCHEDULED_EVENTS_IN_COLUMNS == true) { //get columns
+							if (!isset($entries[$scheduledEntry->templateEntryId]['scheduledevents']))
+								$entries[$scheduledEntry->templateEntryId]['scheduledevents'] = array();
 							else
-								echo PHP_EOL . 'Warning! this live entry has more than a single scheduled event ' . $eid . ' prev: ' . $entries[$eid]['scheduledevents']['scheduledEventSourceId'] . ', and now: ' . $scheduledEntry->sourceEntryId . PHP_EOL . PHP_EOL;
-							$entries[$eid]['scheduledevents']['scheduledEventSourceId'] = $scheduledEntry->sourceEntryId;
-							$entries[$eid]['scheduledevents']['scheduledEventStartTime'] = $scheduledEntry->startDate;
-							$entries[$eid]['scheduledevents']['scheduledEventEndTime'] = $scheduledEntry->endDate;
-						} else {
-							if (!isset($entries[$eid]['scheduledevents']))
-								$entries[$eid]['scheduledevents'] = '';
+								echo PHP_EOL . 'Warning! this live entry has more than a single scheduled event ' . $scheduledEntry->templateEntryId . ' prev: ' . $entries[$scheduledEntry->templateEntryId]['scheduledevents']['scheduledEventSourceId'] . ', and now: ' . $scheduledEntry->sourceEntryId . PHP_EOL . PHP_EOL;
+							$entries[$scheduledEntry->templateEntryId]['scheduledevents']['scheduledEventTags'] = $scheduledEntry->tags;
+							$entries[$scheduledEntry->templateEntryId]['scheduledevents']['scheduledEventSourceId'] = $scheduledEntry->sourceEntryId;
+							$entries[$scheduledEntry->templateEntryId]['scheduledevents']['scheduledEventStartTime'] = $scheduledEntry->startDate;
+							$entries[$scheduledEntry->templateEntryId]['scheduledevents']['scheduledEventEndTime'] = $scheduledEntry->endDate;
+						} else { //get in a single stringifief column
+							if (!isset($entries[$scheduledEntry->templateEntryId]['scheduledevents']))
+								$entries[$scheduledEntry->templateEntryId]['scheduledevents'] = '';
 							else
-								$entries[$eid]['scheduledevents'] .= PHP_EOL;
-
+								$entries[$scheduledEntry->templateEntryId]['scheduledevents'] .= PHP_EOL;
 							$currentTimezone = date_default_timezone_get();
 							$seventStartDate = DateTime::createFromFormat('U', $scheduledEntry->startDate, new DateTimeZone($currentTimezone));
 							$seventEndDate = DateTime::createFromFormat('U', $scheduledEntry->endDate, new DateTimeZone($currentTimezone));
 							$eStartDate = $seventStartDate->format('Y-m-d G:i:s T');
 							$eEndDate = $seventEndDate->format('Y-m-d G:i:s T');
-							$entries[$eid]['scheduledevents'] .= 'source: ' . $scheduledEntry->sourceEntryId . ', start: ' . $eStartDate . ', end: ' . $eEndDate;
+							$entries[$scheduledEntry->templateEntryId]['scheduledevents'] .= 'tags: ' . $scheduledEntry->tags . ', source: ' . $scheduledEntry->sourceEntryId . ', start: ' . $eStartDate . ', end: ' . $eEndDate;
 						}
 					}
-					++$pager->pageIndex;
-					$entriesSchedules = $this->presistantApiRequest($schedulePlugin->scheduleEvent, 'listAction', array($sefilter, $pager), 5);
 				}
-				next($entries);
-				$eid = key($entries);
+				++$pager->pageIndex;
+				$entriesSchedules = $this->presistantApiRequest($schedulePlugin->scheduleEvent, 'listAction', array($sefilter, $pager), 5);
 			}
 			if (KalturaContentAnalytics::DEBUG_PRINTS) {
 				$this->clearConsoleLines(1);
-				echo 'Finished getting scheduled events' . PHP_EOL;
+				echo 'Finished getting total scheduled events (' . $totalSchedules . ')' . PHP_EOL;
 			}
 		}
 
@@ -923,86 +913,17 @@ class KalturaContentAnalytics implements ILogger
 	 */
 	private function convert_to_filename($string)
 	{
-
 		// Replace spaces with underscores and makes the string lowercase
 		$string = str_replace(" ", "_", $string);
 		$string = str_replace("..", ".", $string);
 		$string = strtolower($string);
-
 		// Match any character that is not in our whitelist
-		preg_match_all("/[^0-9^a-z^_^.]/", $string, $matches);
-
+		preg_match_all("/[^0-9^a-z^_^.^-]/", $string, $matches);
 		// Loop through the matches with foreach
 		foreach ($matches[0] as $value) {
 			$string = str_replace($value, "", $string);
 		}
 		return $string;
-	}
-
-	/**
-	 * show a status bar in the console
-	 * 
-	 * <code>
-	 * for($x=1;$x<=100;$x++){
-	 * 
-	 *     show_status($x, 100);
-	 * 
-	 *     usleep(100000);
-	 *                           
-	 * }
-	 * </code>
-	 *
-	 * @param   int     $done   how many items are completed
-	 * @param   int     $total  how many items are to be done total
-	 * @param   int     $size   optional size of the status bar
-	 * @return  void
-	 *
-	 */
-
-	private function show_status($done, $total, $size = 30)
-	{
-
-		static $start_time;
-
-		// if we go over our bound, just ignore it
-		if ($done > $total) return;
-
-		if (empty($start_time)) $start_time = time();
-		$now = time();
-
-		$perc = (float)($done / $total);
-
-		$bar = floor($perc * $size);
-
-		$status_bar = "\r[";
-		$status_bar .= str_repeat("=", $bar);
-		if ($bar < $size) {
-			$status_bar .= ">";
-			$status_bar .= str_repeat(" ", $size - $bar);
-		} else {
-			$status_bar .= "=";
-		}
-
-		$disp = number_format($perc * 100, 0);
-
-		$status_bar .= "] $disp%  $done/$total";
-
-		$rate = ($now - $start_time) / $done;
-		$left = $total - $done;
-		$eta = round($rate * $left, 2);
-
-		$elapsed = $now - $start_time;
-
-		$status_bar .= " remaining: " . number_format($eta) . " sec.  elapsed: " . number_format($elapsed) . " sec.";
-
-		echo "$status_bar  ";
-
-		flush();
-
-		// when done, send a newline
-		if ($done == $total) {
-			echo "\n";
-		}
 	}
 
 	public function getMetadataTemplate($metadataProfileId, $metadataPlugin)
@@ -1087,7 +1008,7 @@ class ExecutionTime
 	{
 		$this->time = round($this->time_end - $this->time_start);
 		$minutes = floor($this->time / 60); //only minutes
-		$seconds = $this->time % 60;//remaining seconds, using modulo operator
+		$seconds = $this->time % 60; //remaining seconds, using modulo operator
 		return "Total script execution time: minutes:$minutes, seconds:$seconds";
 	}
 
